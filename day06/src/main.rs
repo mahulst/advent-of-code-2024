@@ -1,11 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, time::Instant};
+
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 fn main() {
+    let start = Instant::now();
     let answer_1 = part_1(include_str!("./input.txt"));
     let answer_2 = part_2(include_str!("./input.txt"));
-
+    let duration = start.elapsed();
     println!("part_1 {}", answer_1);
     println!("part_2 {}", answer_2);
+    println!("took {} ms", duration.as_millis());
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Pos {
@@ -147,15 +151,15 @@ fn part_2(input: &str) -> usize {
     }
     let mut result = 0;
     let len = original_path.len();
-    original_path.into_iter().enumerate().for_each(|(i, pos)| {
-        println!("{}/{}", i, len);
-        map.insert(pos, Pos::Device);
-        if is_loop(start, Direction::North, &map) {
-            result += 1;
-        }
-        map.insert(pos, Pos::Empty);
-    });
-    result
+    original_path
+        .par_iter()
+        .filter(|(pos)| {
+            let mut map = map.clone();
+            // println!("{}/{}", i, len);
+            map.insert(**pos, Pos::Device);
+            is_loop(start, Direction::North, &map)
+        })
+        .count()
 }
 
 #[cfg(test)]
