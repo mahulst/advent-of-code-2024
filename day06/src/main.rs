@@ -33,7 +33,7 @@ fn parse_input(input: &str) -> (HashMap<(i32, i32), Pos>, (i32, i32)) {
 
     (map, start)
 }
-#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+#[derive(Clone, Hash, Debug, Copy, PartialEq, Eq)]
 enum Direction {
     East,
     West,
@@ -47,14 +47,6 @@ fn dir_vector(dir: &Direction) -> (i32, i32) {
         Direction::West => (-1, 0),
         Direction::North => (0, -1),
         Direction::South => (0, 1),
-    }
-}
-fn dir_vector_rev(dir: &Direction) -> (i32, i32) {
-    match dir {
-        Direction::East => (-1, 0),
-        Direction::West => (1, 0),
-        Direction::North => (0, 1),
-        Direction::South => (0, -1),
     }
 }
 
@@ -88,59 +80,22 @@ fn part_1(input: &str) -> usize {
 
     0
 }
-fn add_reverse_to_map(
-    history: &mut HashMap<(i32, i32), Vec<Direction>>,
-    map: &HashMap<(i32, i32), Pos>,
-    start: (i32, i32),
-    direction: Direction,
-) {
-    let mut pos = start;
-    let mut direction = direction;
-    let mut count = 0;
-    while map.contains_key(&pos) {
-        count += 1;
-        if count == 1000 {
-            return;
-        }
-        println!("{:?}", pos);
-        let direction_vector = dir_vector_rev(&direction);
-        let next = (pos.0 + direction_vector.0, pos.1 + direction_vector.1);
-        match map.get(&next) {
-            Some(pos_in_map) => match pos_in_map {
-                Pos::Empty => {
-                    pos = next;
-                    let entry = history.entry(next).or_default();
-                    entry.push(direction);
-                }
-                Pos::Device => {
-                    direction = match direction {
-                        Direction::East => Direction::South,
-                        Direction::West => Direction::North,
-                        Direction::North => Direction::East,
-                        Direction::South => Direction::West,
-                    };
-                }
-            },
-            None => return,
-        }
-    }
-}
 
 fn is_loop(start: (i32, i32), dir: Direction, map: &HashMap<(i32, i32), Pos>) -> bool {
     let mut history = HashSet::new();
     let mut pos = start;
     let mut direction = dir;
     while map.contains_key(&pos) {
-        if history.contains(&pos){
-            return true
-        }
         let direction_vector = dir_vector(&direction);
         let next = (pos.0 + direction_vector.0, pos.1 + direction_vector.1);
+        if history.contains(&(next, direction)) {
+            return true;
+        }
         match map.get(&next) {
             Some(pos_in_map) => match pos_in_map {
                 Pos::Empty => {
                     pos = next;
-                    history.insert(next);
+                    history.insert((next, direction));
                 }
                 Pos::Device => {
                     direction = match direction {
@@ -159,50 +114,22 @@ fn is_loop(start: (i32, i32), dir: Direction, map: &HashMap<(i32, i32), Pos>) ->
 
     false
 }
-// 764 = too low
-// 1030 = too low
-// 1042  = too low
+
 fn part_2(input: &str) -> usize {
-    let (map, start) = parse_input(input);
-    let mut history = HashMap::new();
+    let (mut map, start) = parse_input(input);
     let mut pos = start;
     let mut direction = Direction::North;
-    let mut result = HashSet::new();
-    println!("start");
-    history.insert(start, vec![direction]);
-    add_reverse_to_map(&mut history, &map, start, direction);
 
+    let mut original_path = HashSet::new();
+    original_path.insert(start);
     while map.contains_key(&pos) {
         let direction_vector = dir_vector(&direction);
         let next = (pos.0 + direction_vector.0, pos.1 + direction_vector.1);
         match map.get(&next) {
             Some(pos_in_map) => match pos_in_map {
                 Pos::Empty => {
-                    if let Some(already_been) = history.get(&next) {
-                        let prev_direction = match direction {
-                            Direction::East => Direction::South,
-                            Direction::West => Direction::North,
-                            Direction::North => Direction::East,
-                            Direction::South => Direction::West,
-                        };
-
-                        if already_been.contains(&prev_direction) {
-                            let next_next =
-                                (next.0 + direction_vector.0, next.1 + direction_vector.1);
-                            let not_already_a_device = map.get(&next_next) != Some(&Pos::Device);
-                            if not_already_a_device {
-                                println!(
-                                    "added {:?} because it contains {:?}",
-                                    next_next, prev_direction
-                                );
-                                println!("{:?}", next_next);
-                                result.insert(next_next);
-                            }
-                        }
-                    }
                     pos = next;
-                    let entry = history.entry(next).or_default();
-                    entry.push(direction);
+                    original_path.insert(next);
                 }
                 Pos::Device => {
                     direction = match direction {
@@ -211,8 +138,6 @@ fn part_2(input: &str) -> usize {
                         Direction::North => Direction::East,
                         Direction::South => Direction::West,
                     };
-                    println!("adding reverse from , {:?}", pos);
-                    add_reverse_to_map(&mut history, &map, pos, direction);
                 }
             },
             None => {
@@ -220,11 +145,17 @@ fn part_2(input: &str) -> usize {
             }
         }
     }
-    let mut pos = start;
-    let mut direction = Direction::North;
-
-    println!("results:");
-    result.len()
+    let mut result = 0;
+    let len = original_path.len();
+    original_path.into_iter().enumerate().for_each(|(i, pos)| {
+        println!("{}/{}", i, len);
+        map.insert(pos, Pos::Device);
+        if is_loop(start, Direction::North, &map) {
+            result += 1;
+        }
+        map.insert(pos, Pos::Empty);
+    });
+    result
 }
 
 #[cfg(test)]
@@ -261,6 +192,6 @@ mod tests {
 #.........
 ......#...",
         );
-        assert_eq!(result, 31);
+        assert_eq!(result, 6);
     }
 }
